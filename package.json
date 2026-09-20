@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "npx prisma generate && npx tsc",
+    "build": "./node_modules/.bin/prisma generate && ./node_modules/.bin/tsc",
     "start": "node dist/server.js",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.ts\"",

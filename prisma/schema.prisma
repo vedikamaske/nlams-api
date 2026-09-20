@@ -1,0 +1,913 @@
+// Prisma schema for NLAMS (National Land Acquisition & Management System)
+// Phase 1: Authentication Identity Link, Organizations, Roles, RBAC, ABAC Jurisdictions, Stakeholder Profiles, Dashboards & System Tables
+// Phase 2: Domain Core (Projects, Proposals, Acquisition Packages, Stakeholders, Milestones, Status History, Tasks, Task Assignments, Documents, Document Links)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum CommonStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum OrganizationType {
+  CENTRAL_MINISTRY
+  STATE_GOVERNMENT
+  DISTRICT_ADMINISTRATION
+  LAO_OFFICE
+  CALA_AUTHORITY
+  PIA_AGENCY
+  LRB_BOARD
+  RR_AUTHORITY
+  POLICY_INSTITUTE
+  OTHER
+}
+
+enum RoleCode {
+  SYSTEM_ADMIN
+  CENTRAL_MINISTRY
+  STATE_GOVERNMENT
+  DISTRICT_COLLECTOR
+  LAO
+  CALA
+  PIA
+  LRB
+  FIELD_OFFICER
+  RR_AUTHORITY
+  POLICY_MAKER
+}
+
+enum JurisdictionType {
+  NATIONAL
+  STATE
+  DISTRICT
+  SUB_DIVISION
+  TEHSIL
+  VILLAGE
+}
+
+enum DashboardCode {
+  SYSTEM_ADMIN_DASHBOARD
+  CENTRAL_MINISTRY_DASHBOARD
+  STATE_GOVERNMENT_DASHBOARD
+  DISTRICT_COLLECTOR_DASHBOARD
+  LAO_DASHBOARD
+  CALA_DASHBOARD
+  PIA_DASHBOARD
+  LRB_DASHBOARD
+  FIELD_OFFICER_DASHBOARD
+  RR_AUTHORITY_DASHBOARD
+  POLICY_MAKER_DASHBOARD
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PROPOSED
+  UNDER_REVIEW
+  APPROVED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  RETURNED
+  ACCEPTED
+  REJECTED
+}
+
+enum AcquisitionPackageStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  SKIPPED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ESCALATED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+  REJECTED
+}
+
+enum DocumentEntityType {
+  PROJECT
+  PROJECT_PROPOSAL
+  ACQUISITION_PACKAGE
+  PARCEL
+  COMPENSATION
+  RR
+  POSSESSION
+  TASK
+}
+
+// -----------------------------------------------------------------------------
+// 1. APPLICATION USERS (Linked to Supabase auth.users)
+// -----------------------------------------------------------------------------
+
+model User {
+  id             String     @id @default(dbgenerated("gen_random_uuid()::text"))
+  authUserId     String     @unique @map("auth_user_id")
+  employeeCode   String?    @map("employee_code")
+  firstName      String     @map("first_name")
+  middleName     String?    @map("middle_name")
+  lastName       String     @map("last_name")
+  displayName    String?    @map("display_name")
+  phone          String?    @map("phone")
+  email          String     @unique
+  avatarUrl      String?    @map("avatar_url")
+  designation    String?
+  organizationId String?    @map("organization_id")
+  departmentId   String?    @map("department_id")
+  status         UserStatus @default(ACTIVE)
+  lastLoginAt    DateTime?  @map("last_login_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  organization                Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  department                  Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  userRoles                   UserRole[]
+  userScopes                  UserScope[]
+  piaProfile                  PIAProfile?
+  lrbProfile                  LRBProfile?
+  laoProfile                  LAOProfile?
+  calaProfile                 CALAProfile?
+  fieldOfficerProfile         FieldOfficerProfile?
+  rrAuthorityProfile          RRAuthorityProfile?
+  policyMakerProfile          PolicyMakerProfile?
+  notifications               Notification[]
+  auditLogs                   AuditLog[]           @relation("ActorUser")
+  reviewedAccessReqs          AccessRequest[]      @relation("ReviewerUser")
+  createdProjects             Project[]            @relation("CreatedProjects")
+  submittedProposals          ProjectProposal[]    @relation("SubmittedProposals")
+  reviewedProposals           ProjectProposal[]    @relation("ReviewedProposals")
+  submittedPackages           AcquisitionPackage[] @relation("SubmittedPackages")
+  projectStakeholders         ProjectStakeholder[] @relation("UserProjectStakeholders")
+  assignedProjectStakeholders ProjectStakeholder[] @relation("AssignedProjectStakeholders")
+  changedProjectStatusHistory ProjectStatusHistory[] @relation("StatusChangedBy")
+  createdTasks                Task[]               @relation("CreatedTasks")
+  taskAssignments             TaskAssignment[]     @relation("AssignedUserTasks")
+  assignedByTaskAssignments   TaskAssignment[]     @relation("TaskAssignedBy")
+  uploadedDocuments           Document[]           @relation("UploadedDocuments")
+
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// 2. ORGANIZATIONS & DEPARTMENTS
+// -----------------------------------------------------------------------------
+
+model Organization {
+  id             String     @id @default(dbgenerated("gen_random_uuid()::text"))
+  parentOrganizationId String?          @map("parent_organization_id")
+  name                 String
+  code                 String           @unique
+  organizationType     OrganizationType @map("organization_type")
+  description          String?
+  status               CommonStatus     @default(ACTIVE)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  parent               Organization?         @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children             Organization[]        @relation("OrgHierarchy")
+  departments          Department[]
+  users                User[]
+  userRoles            UserRole[]
+  userScopes           UserScope[]
+  piaProfiles          PIAProfile[]
+  lrbProfiles          LRBProfile[]
+  laoProfiles          LAOProfile[]
+  calaProfiles         CALAProfile[]
+  fieldOfficerProfiles FieldOfficerProfile[]
+  rrAuthorityProfiles  RRAuthorityProfile[]
+  policyMakerProfiles  PolicyMakerProfile[]
+  auditLogs            AuditLog[]
+  requestedAccessReqs  AccessRequest[]       @relation("RequestedOrg")
+  sponsoringProjects   Project[]             @relation("SponsoringOrgProjects")
+  implementingProjects Project[]             @relation("ImplementingOrgProjects")
+  submittedProposals   ProjectProposal[]     @relation("SubmittedOrgProposals")
+  projectStakeholders  ProjectStakeholder[]
+
+  @@map("organizations")
+}
+
+model Department {
+  id             String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  organizationId String       @map("organization_id")
+  name           String
+  code           String
+  description    String?
+  status         CommonStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users        User[]
+
+  @@unique([organizationId, code])
+  @@map("departments")
+}
+
+// -----------------------------------------------------------------------------
+// 3. ROLES & PERMISSIONS (RBAC)
+// -----------------------------------------------------------------------------
+
+model Role {
+  id          String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  code        RoleCode     @unique
+  name        String
+  description String?
+  status      CommonStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  rolePermissions     RolePermission[]
+  userRoles           UserRole[]
+  dashboardConfig     DashboardConfig?
+  requestedAccessReqs AccessRequest[]      @relation("RequestedRole")
+  projectStakeholders ProjectStakeholder[]
+  taskAssignments     TaskAssignment[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  code        String       @unique
+  name        String
+  resource    String
+  action      String
+  description String?
+  status      CommonStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id             String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId         String       @map("user_id")
+  roleId         String       @map("role_id")
+  organizationId String?      @map("organization_id")
+  jurisdictionId String?      @map("jurisdiction_id")
+  assignedBy     String?      @map("assigned_by")
+  assignedAt     DateTime     @default(now()) @map("assigned_at")
+  expiresAt      DateTime?    @map("expires_at")
+  status         CommonStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, roleId, organizationId, jurisdictionId])
+  @@map("user_roles")
+}
+
+// -----------------------------------------------------------------------------
+// 4. JURISDICTIONS & SCOPES (ABAC)
+// -----------------------------------------------------------------------------
+
+model Jurisdiction {
+  id             String           @id @default(dbgenerated("gen_random_uuid()::text"))
+  parentJurisdictionId String?          @map("parent_jurisdiction_id")
+  type                 JurisdictionType
+  name                 String
+  code                 String           @unique
+  stateCode            String?          @map("state_code")
+  districtCode         String?          @map("district_code")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  parent               Jurisdiction?         @relation("JurisdictionHierarchy", fields: [parentJurisdictionId], references: [id], onDelete: SetNull)
+  children             Jurisdiction[]        @relation("JurisdictionHierarchy")
+  userRoles            UserRole[]
+  userScopes           UserScope[]
+  laoProfiles          LAOProfile[]
+  calaProfiles         CALAProfile[]
+  fieldOfficerProfiles FieldOfficerProfile[]
+  rrAuthorityProfiles  RRAuthorityProfile[]
+  policyMakerProfiles  PolicyMakerProfile[]
+  requestedAccessReqs  AccessRequest[]       @relation("RequestedJurisdiction")
+  projects             Project[]
+
+  @@map("jurisdictions")
+}
+
+model UserScope {
+  id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId         String   @map("user_id")
+  jurisdictionId String?  @map("jurisdiction_id")
+  organizationId String?  @map("organization_id")
+  scopeType      String   @map("scope_type")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@map("user_scopes")
+}
+
+// -----------------------------------------------------------------------------
+// 5. STAKEHOLDER SPECIFIC PROFILES
+// -----------------------------------------------------------------------------
+
+model PIAProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId             String   @unique @map("user_id")
+  organizationId     String?  @map("organization_id")
+  agencyType         String   @map("agency_type")
+  agencyCode         String   @map("agency_code")
+  registrationNumber String?  @map("registration_number")
+  designation        String?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@map("pia_profiles")
+}
+
+model LRBProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId          String   @unique @map("user_id")
+  organizationId  String?  @map("organization_id")
+  lrbType         String   @map("lrb_type")
+  lrbCode         String   @map("lrb_code")
+  departmentName  String?  @map("department_name")
+  projectCategory String?  @map("project_category")
+  designation     String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@map("lrb_profiles")
+}
+
+model LAOProfile {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId               String    @unique @map("user_id")
+  organizationId       String?   @map("organization_id")
+  officeCode           String    @map("office_code")
+  jurisdictionId       String?   @map("jurisdiction_id")
+  designation          String?
+  appointmentReference String?   @map("appointment_reference")
+  effectiveFrom        DateTime? @map("effective_from")
+  effectiveTo          DateTime? @map("effective_to")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("lao_profiles")
+}
+
+model CALAProfile {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId               String    @unique @map("user_id")
+  organizationId       String?   @map("organization_id")
+  authorityCode        String    @map("authority_code")
+  jurisdictionId       String?   @map("jurisdiction_id")
+  designation          String?
+  appointmentReference String?   @map("appointment_reference")
+  applicableAct        String?   @map("applicable_act")
+  effectiveFrom        DateTime? @map("effective_from")
+  effectiveTo          DateTime? @map("effective_to")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("cala_profiles")
+}
+
+model FieldOfficerProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId         String   @unique @map("user_id")
+  organizationId String?  @map("organization_id")
+  designation    String?
+  jurisdictionId String?  @map("jurisdiction_id")
+  fieldUnit      String?  @map("field_unit")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("field_officer_profiles")
+}
+
+model RRAuthorityProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId         String   @unique @map("user_id")
+  organizationId String?  @map("organization_id")
+  authorityType  String   @map("authority_type")
+  jurisdictionId String?  @map("jurisdiction_id")
+  designation    String?
+  approvalLevel  String?  @map("approval_level")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("rr_authority_profiles")
+}
+
+model PolicyMakerProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId         String   @unique @map("user_id")
+  organizationId String?  @map("organization_id")
+  policyDomain   String   @map("policy_domain")
+  jurisdictionId String?  @map("jurisdiction_id")
+  designation    String?
+  approvalLevel  String?  @map("approval_level")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("policy_maker_profiles")
+}
+
+// -----------------------------------------------------------------------------
+// 6. DASHBOARDS & WIDGET CONFIGURATIONS
+// -----------------------------------------------------------------------------
+
+model DashboardConfig {
+  id           String        @id @default(dbgenerated("gen_random_uuid()::text"))
+  code         DashboardCode @unique
+  name         String
+  description  String?
+  roleId       String?       @unique @map("role_id")
+  status       CommonStatus  @default(ACTIVE)
+  layoutConfig Json?         @map("layout_config")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  role    Role?             @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  widgets DashboardWidget[]
+
+  @@map("dashboard_configs")
+}
+
+model DashboardWidget {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  dashboardId        String   @map("dashboard_id")
+  code               String
+  title              String
+  description        String?
+  widgetType         String   @map("widget_type")
+  dataSource         String   @map("data_source")
+  displayOrder       Int      @default(0) @map("display_order")
+  isVisible          Boolean  @default(true) @map("is_visible")
+  configuration      Json?
+  requiredPermission String?  @map("required_permission")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  dashboard DashboardConfig @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@unique([dashboardId, code])
+  @@map("dashboard_widgets")
+}
+
+// -----------------------------------------------------------------------------
+// 7. PROJECTS & PROPOSALS
+// -----------------------------------------------------------------------------
+
+model Project {
+  id                         String          @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectCode                String          @unique @map("project_code")
+  name                       String
+  description                String?         @db.Text
+  projectType                String          @map("project_type")
+  projectCategory            String?         @map("project_category")
+  sponsoringOrganizationId   String?         @map("sponsoring_organization_id")
+  implementingOrganizationId String?         @map("implementing_organization_id")
+  jurisdictionId             String?         @map("jurisdiction_id")
+  estimatedCost              Decimal?        @map("estimated_cost") @db.Decimal(15, 2)
+  landRequiredArea           Decimal?        @map("land_required_area") @db.Decimal(12, 4)
+  status                     ProjectStatus   @default(DRAFT)
+  priority                   ProjectPriority @default(MEDIUM)
+  startDate                  DateTime?       @map("start_date") @db.Timestamptz
+  targetCompletionDate       DateTime?       @map("target_completion_date") @db.Timestamptz
+  createdBy                  String?         @map("created_by")
+  createdAt                  DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                  DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  sponsoringOrganization   Organization?          @relation("SponsoringOrgProjects", fields: [sponsoringOrganizationId], references: [id], onDelete: SetNull)
+  implementingOrganization Organization?          @relation("ImplementingOrgProjects", fields: [implementingOrganizationId], references: [id], onDelete: SetNull)
+  jurisdiction             Jurisdiction?          @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+  creator                  User?                  @relation("CreatedProjects", fields: [createdBy], references: [id], onDelete: SetNull)
+  proposals                ProjectProposal[]
+  acquisitionPackages      AcquisitionPackage[]
+  stakeholders             ProjectStakeholder[]
+  milestones               ProjectMilestone[]
+  statusHistory            ProjectStatusHistory[]
+  tasks                    Task[]
+
+  @@index([projectCode])
+  @@index([sponsoringOrganizationId])
+  @@index([implementingOrganizationId])
+  @@index([jurisdictionId])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectProposal {
+  id                        String         @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId                 String?        @map("project_id")
+  proposalReference         String         @unique @map("proposal_reference")
+  submittedBy               String         @map("submitted_by")
+  submittedByOrganizationId String?        @map("submitted_by_organization_id")
+  proposalType              String?        @map("proposal_type")
+  description               String?        @db.Text
+  landRequirement           Decimal?       @map("land_requirement") @db.Decimal(12, 4)
+  estimatedCost             Decimal?       @map("estimated_cost") @db.Decimal(15, 2)
+  proposedTimeline          String?        @map("proposed_timeline")
+  status                    ProposalStatus @default(DRAFT)
+  reviewedBy                String?        @map("reviewed_by")
+  reviewedAt                DateTime?      @map("reviewed_at") @db.Timestamptz
+  reviewComment             String?        @db.Text @map("review_comment")
+  submittedAt               DateTime?      @map("submitted_at") @db.Timestamptz
+  createdAt                 DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project                 Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  submitter               User          @relation("SubmittedProposals", fields: [submittedBy], references: [id], onDelete: Cascade)
+  submittedByOrganization Organization? @relation("SubmittedOrgProposals", fields: [submittedByOrganizationId], references: [id], onDelete: SetNull)
+  reviewer                User?         @relation("ReviewedProposals", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([submittedBy])
+  @@index([status])
+  @@map("project_proposals")
+}
+
+model AcquisitionPackage {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId         String                   @map("project_id")
+  packageCode       String                   @unique @map("package_code")
+  title             String
+  description       String?                  @db.Text
+  landRequiredArea  Decimal?                 @map("land_required_area") @db.Decimal(12, 4)
+  acquisitionMethod String?                  @map("acquisition_method")
+  applicableAct     String?                  @map("applicable_act")
+  status            AcquisitionPackageStatus @default(DRAFT)
+  submittedBy       String?                  @map("submitted_by")
+  submittedAt       DateTime?                @map("submitted_at") @db.Timestamptz
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submitter User?   @relation("SubmittedPackages", fields: [submittedBy], references: [id], onDelete: SetNull)
+  tasks     Task[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("acquisition_packages")
+}
+
+model ProjectStakeholder {
+  id             String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId      String       @map("project_id")
+  userId         String       @map("user_id")
+  roleId         String       @map("role_id")
+  organizationId String?      @map("organization_id")
+  assignedBy     String?      @map("assigned_by")
+  assignedAt     DateTime     @default(now()) @map("assigned_at") @db.Timestamptz
+  status         CommonStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User          @relation("UserProjectStakeholders", fields: [userId], references: [id], onDelete: Cascade)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  assigner     User?         @relation("AssignedProjectStakeholders", fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId, roleId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([organizationId])
+  @@map("project_stakeholders")
+}
+
+model ProjectMilestone {
+  id          String          @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId   String          @map("project_id")
+  name        String
+  code        String
+  description String?         @db.Text
+  sequence    Int
+  status      MilestoneStatus @default(PENDING)
+  plannedDate DateTime?       @map("planned_date") @db.Timestamptz
+  actualDate  DateTime?       @map("actual_date") @db.Timestamptz
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, code])
+  @@index([projectId])
+  @@index([status])
+  @@map("project_milestones")
+}
+
+model ProjectStatusHistory {
+  id             String         @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId      String         @map("project_id")
+  previousStatus ProjectStatus? @map("previous_status")
+  newStatus      ProjectStatus  @map("new_status")
+  changedBy      String?        @map("changed_by")
+  reason         String?        @db.Text
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changedByUser User?   @relation("StatusChangedBy", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("project_status_history")
+}
+
+// -----------------------------------------------------------------------------
+// 8. TASKS & TASK ASSIGNMENTS
+// -----------------------------------------------------------------------------
+
+model Task {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()::text"))
+  projectId            String?       @map("project_id")
+  acquisitionPackageId String?       @map("acquisition_package_id")
+  title                String
+  description          String?       @db.Text
+  taskType             String        @map("task_type")
+  status               TaskStatus    @default(PENDING)
+  priority             TaskPriority  @default(MEDIUM)
+  dueDate              DateTime?     @map("due_date") @db.Timestamptz
+  createdBy            String?       @map("created_by")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  acquisitionPackage AcquisitionPackage? @relation(fields: [acquisitionPackageId], references: [id], onDelete: Cascade)
+  creator            User?               @relation("CreatedTasks", fields: [createdBy], references: [id], onDelete: SetNull)
+  assignments        TaskAssignment[]
+
+  @@index([projectId])
+  @@index([acquisitionPackageId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id          String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  taskId      String       @map("task_id")
+  userId      String?      @map("user_id")
+  roleId      String?      @map("role_id")
+  assignedBy  String?      @map("assigned_by")
+  assignedAt  DateTime     @default(now()) @map("assigned_at") @db.Timestamptz
+  completedAt DateTime?    @map("completed_at") @db.Timestamptz
+  status      CommonStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user     User?  @relation("AssignedUserTasks", fields: [userId], references: [id], onDelete: SetNull)
+  role     Role?  @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  assigner User?  @relation("TaskAssignedBy", fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_assignments")
+}
+
+// -----------------------------------------------------------------------------
+// 9. DOCUMENTS & DOCUMENT LINKS
+// -----------------------------------------------------------------------------
+
+model Document {
+  id           String         @id @default(dbgenerated("gen_random_uuid()::text"))
+  name         String
+  documentType String         @map("document_type")
+  storagePath  String         @map("storage_path")
+  mimeType     String?        @map("mime_type")
+  fileSize     BigInt?        @map("file_size")
+  uploadedBy   String?        @map("uploaded_by")
+  version      Int            @default(1)
+  status       DocumentStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  uploader      User?          @relation("UploadedDocuments", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  documentLinks DocumentLink[]
+
+  @@index([uploadedBy])
+  @@map("documents")
+}
+
+model DocumentLink {
+  id         String             @id @default(dbgenerated("gen_random_uuid()::text"))
+  documentId String             @map("document_id")
+  entityType DocumentEntityType @map("entity_type")
+  entityId   String             @map("entity_id")
+  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([entityType, entityId])
+  @@map("document_links")
+}
+
+// -----------------------------------------------------------------------------
+// 10. SYSTEM TABLES (Notifications, Audit Logs, Access Requests)
+// -----------------------------------------------------------------------------
+
+model Notification {
+  id            String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId        String    @map("user_id")
+  type          String
+  title         String
+  message       String
+  referenceType String?   @map("reference_type")
+  referenceId   String?   @map("reference_id")
+  isRead        Boolean   @default(false) @map("is_read")
+  readAt        DateTime? @map("read_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  actorUserId    String?  @map("actor_user_id")
+  organizationId String?  @map("organization_id")
+  action         String
+  resourceType   String   @map("resource_type")
+  resourceId     String?  @map("resource_id")
+  previousState  Json?    @map("previous_state")
+  newState       Json?    @map("new_state")
+  metadata       Json?
+  requestId      String?  @map("request_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  actor        User?         @relation("ActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model AccessRequest {
+  id                      String              @id @default(dbgenerated("gen_random_uuid()::text"))
+  email                   String
+  fullName                String              @map("full_name")
+  phone                   String?
+  organizationName        String?             @map("organization_name")
+  requestedRoleId         String?             @map("requested_role_id")
+  requestedOrganizationId String?             @map("requested_organization_id")
+  requestedJurisdictionId String?             @map("requested_jurisdiction_id")
+  reason                  String?
+  status                  AccessRequestStatus @default(PENDING)
+  reviewedBy              String?             @map("reviewed_by")
+  reviewedAt              DateTime?           @map("reviewed_at") @db.Timestamptz
+  reviewComment           String?             @map("review_comment")
+  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  reviewer              User?         @relation("ReviewerUser", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  requestedRole         Role?         @relation("RequestedRole", fields: [requestedRoleId], references: [id], onDelete: SetNull)
+  requestedOrganization Organization? @relation("RequestedOrg", fields: [requestedOrganizationId], references: [id], onDelete: SetNull)
+  requestedJurisdiction Jurisdiction? @relation("RequestedJurisdiction", fields: [requestedJurisdictionId], references: [id], onDelete: SetNull)
+
+  @@map("access_requests")
+}
+

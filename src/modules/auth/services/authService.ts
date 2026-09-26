@@ -90,7 +90,7 @@ export interface UserContextData {
 export class AuthService {
   /**
    * Resolves full application user authorization context from database using auth_user_id.
-   * Supabase Auth is responsible for identity. NLAMS backend resolves RBAC, ABAC, and profiles.
+   * Supabase Auth is responsible for identity. SANKALP backend resolves RBAC, ABAC, and profiles.
    */
   public async resolveApplicationUserContext(
     authUserId: string
@@ -308,21 +308,21 @@ export class AuthService {
       },
       organization: user.organization
         ? {
-            id: user.organization.id,
-            name: user.organization.name,
-            code: user.organization.code,
-            organizationType: user.organization.organizationType,
-            description: user.organization.description,
-            status: user.organization.status,
-          }
+          id: user.organization.id,
+          name: user.organization.name,
+          code: user.organization.code,
+          organizationType: user.organization.organizationType,
+          description: user.organization.description,
+          status: user.organization.status,
+        }
         : null,
       department: user.department
         ? {
-            id: user.department.id,
-            name: user.department.name,
-            code: user.department.code,
-            description: user.department.description,
-          }
+          id: user.department.id,
+          name: user.department.name,
+          code: user.department.code,
+          description: user.department.description,
+        }
         : null,
       roles: formattedRoles,
       permissions: formattedPermissions,

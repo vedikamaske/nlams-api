@@ -20,7 +20,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z
     .string()
     .default(process.env.SUPABASE_SECRET_KEY || "dummy_service_role_key"),
-  DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/nlams_dev"),
+  DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/SANKALP_dev"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
 });
 

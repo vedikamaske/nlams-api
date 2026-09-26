@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthorizationError } from "../core/errors/appError.js";
 
-export interface NlamsUserContext {
+export interface SANKALPUserContext {
   id: string;
   authUserId: string;
   role: string;
@@ -13,13 +13,13 @@ export interface NlamsUserContext {
 declare global {
   namespace Express {
     interface Request {
-      nlamsUser?: NlamsUserContext;
+      SANKALPUser?: SANKALPUserContext;
     }
   }
 }
 
 /**
- * Middleware placeholder for NLAMS Application Authorization (RBAC / ABAC).
+ * Middleware placeholder for SANKALP Application Authorization (RBAC / ABAC).
  * Evaluates role, organization, and jurisdiction against mandatory permissions.
  */
 export const requirePermissions = (requiredPermissions: string[]) => {
@@ -29,7 +29,7 @@ export const requirePermissions = (requiredPermissions: string[]) => {
         throw new AuthorizationError("Authentication required before authorization check");
       }
 
-      // Placeholder: Resolve actual NLAMS profile & roles from database based on req.supabaseUser.id
+      // Placeholder: Resolve actual SANKALP profile & roles from database based on req.supabaseUser.id
       // (The role passed in frontend login forms is NEVER trusted as authorization truth)
 
       if (requiredPermissions.length === 0) {

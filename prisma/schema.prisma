@@ -1,4 +1,4 @@
-// Prisma schema for NLAMS (National Land Acquisition & Management System)
+// Prisma schema for SANKALP (National Land Acquisition & Management System)
 // Phase 1: Authentication Identity Link, Organizations, Roles, RBAC, ABAC Jurisdictions, Stakeholder Profiles, Dashboards & System Tables
 // Phase 2: Domain Core (Projects, Proposals, Acquisition Packages, Stakeholders, Milestones, Status History, Tasks, Task Assignments, Documents, Document Links)
 

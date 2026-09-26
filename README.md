@@ -1,6 +1,6 @@
-# NLAMS — National Land Acquisition & Management System (API Foundation)
+# SANKALP — National Land Acquisition & Management System (API Foundation)
 
-Production-ready TypeScript + Express backend foundation for **NLAMS** — a government-scale land acquisition orchestration platform.
+Production-ready TypeScript + Express backend foundation for **SANKALP** — a government-scale land acquisition orchestration platform.
 
 ## 🛠️ Technology Stack
 
@@ -51,7 +51,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 
-DATABASE_URL=postgresql://postgres:password@localhost:5432/nlams_dev
+DATABASE_URL=postgresql://postgres:password@localhost:5432/SANKALP_dev
 
 CORS_ORIGIN=http://localhost:3000
 ```
@@ -110,7 +110,7 @@ Verifies server status and availability.
 ```json
 {
   "success": true,
-  "message": "NLAMS API is running",
+  "message": "SANKALP API is running",
   "timestamp": "2026-09-20T16:20:00.000Z"
 }
 ```

@@ -37,7 +37,7 @@ const startServer = async (): Promise<void> => {
   server.listen(env.PORT, () => {
     console.log("");
     console.log(chalk.cyan.bold("════════════════════════════════════════"));
-    console.log(chalk.cyan.bold(" NLAMS API — Foundation Server"));
+    console.log(chalk.cyan.bold(" SANKALP API — Foundation Server"));
     console.log(chalk.cyan.bold("════════════════════════════════════════"));
     console.log(`${chalk.gray(" Environment :")} ${chalk.yellow.bold(env.NODE_ENV)}`);
     console.log(`${chalk.gray(" Port        :")} ${chalk.green.bold(env.PORT)}`);
@@ -68,7 +68,7 @@ const startServer = async (): Promise<void> => {
       // 2. Close Database Pool
       await closeDbPool();
 
-      console.log(chalk.cyan.bold("✔ NLAMS API server shutdown complete. Exiting."));
+      console.log(chalk.cyan.bold("✔ SANKALP API server shutdown complete. Exiting."));
       console.log("");
       process.exit(0);
     });

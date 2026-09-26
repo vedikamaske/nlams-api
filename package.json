@@ -1,7 +1,7 @@
 {
-  "name": "nlams-api",
+  "name": "SANKALP-api",
   "version": "0.1.0",
-  "description": "NLAMS — National Land Acquisition & Management System API Foundation",
+  "description": "SANKALP — National Land Acquisition & Management System API Foundation",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -17,7 +17,7 @@
     "prisma:studio": "prisma studio"
   },
   "keywords": [
-    "nlams",
+    "SANKALP",
     "express",
     "typescript",
     "supabase",
@@ -26,7 +26,7 @@
     "zod",
     "land-acquisition"
   ],
-  "author": "Government of India / NLAMS Team",
+  "author": "Government of India / SANKALP Team",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.4.1",

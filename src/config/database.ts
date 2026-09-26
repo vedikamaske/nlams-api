@@ -11,7 +11,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * Reusable Singleton Prisma Client Instance for NLAMS Application Database Operations.
+ * Reusable Singleton Prisma Client Instance for SANKALP Application Database Operations.
  */
 export const prisma =
   globalForPrisma.prisma ??
